@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<title>Gaze Responder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0d12;
+    --surface: #131720;
+    --surface-2: #1a1f2b;
+    --line: #242a38;
+    --ink: #eef1f7;
+    --ink-2: #aab2c3;
+    --muted: #6d768a;
+    --accent: #7aa2ff;
+    --accent-ink: #0a1020;
+    --ok: #5fd39a;
+    --warm: #ffb36b;
+    --danger: #ff7a7a;
+    --radius: 16px;
+    --shadow: 0 1px 0 rgba(255,255,255,.04) inset, 0 12px 40px rgba(0,0,0,.35);
+    --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f3f5f9; --surface: #ffffff; --surface-2: #f6f7fb; --line: #e3e7ef;
+      --ink: #111625; --ink-2: #434c60; --muted: #7a8398;
+      --accent: #3c6df0; --accent-ink: #ffffff; --ok: #1f9d6b; --warm: #e0802e;
+      --shadow: 0 1px 2px rgba(16,24,40,.06), 0 8px 24px rgba(16,24,40,.08);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; font-family: var(--font); font-size: 15px; line-height: 1.55;
+    color: var(--ink); background:
+      radial-gradient(1200px 600px at 10% -10%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%),
+      var(--bg);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- Header ---------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 14px clamp(14px, 3vw, 28px);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    background: color-mix(in srgb, var(--bg) 80%, transparent);
+    border-bottom: 1px solid var(--line);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .logo {
+    width: 32px; height: 32px; border-radius: 10px; flex: 0 0 auto;
+    background: conic-gradient(from 200deg, var(--accent), var(--ok), var(--warm), var(--accent));
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  .brand h1 { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -.01em; white-space: nowrap; }
+  .brand p { margin: 0; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+  button {
+    font: inherit; font-weight: 550; font-size: 13.5px;
+    padding: 9px 14px; border-radius: 10px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+    transition: transform .12s ease, background .2s ease, border-color .2s ease, opacity .2s;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:active:not(:disabled) { transform: scale(.97); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+  button.primary:hover:not(:disabled) { filter: brightness(1.06); border-color: transparent; }
+  button[aria-pressed="true"] { border-color: var(--ok); color: var(--ok); }
+
+  /* ---------- Layout ---------- */
+  .layout {
+    display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px;
+    padding: clamp(14px, 2.5vw, 24px);
+    max-width: 1280px; margin: 0 auto;
+  }
+  .panel {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow);
+  }
+
+  /* ---------- Stage ---------- */
+  .stage { padding: 16px; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .stage-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    margin: 2px 4px 14px;
+  }
+  .stage-head h2 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12.5px; font-weight: 550; color: var(--ink-2);
+    padding: 5px 11px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line);
+  }
+  .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+  .pill.live .dot { background: var(--ok); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 22%, transparent); }
+  .pill.warn .dot { background: var(--danger); }
+
+  .grid {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: minmax(120px, 1fr);
+    gap: 10px; min-height: 480px;
+  }
+  .zone {
+    position: relative; display: flex; flex-direction: column; gap: 6px;
+    padding: 14px; border-radius: 12px; overflow: hidden;
+    background: var(--surface-2); border: 1px solid var(--line);
+    transition: background .3s ease, border-color .3s ease, transform .3s cubic-bezier(.2,.8,.2,1), opacity .3s ease, box-shadow .3s;
+  }
+  .zone h3 {
+    margin: 0; font-size: 11px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+  }
+  .zone p { margin: 0; font-size: 13.5px; color: var(--ink-2); }
+  .zone .meta { margin-top: auto; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .zone .bar { position: absolute; left: 0; bottom: 0; height: 3px; width: 0; background: var(--accent); transition: width .2s linear; }
+  .zone.active {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, var(--surface-2));
+    box-shadow: 0 0 0 1px var(--accent), 0 10px 30px color-mix(in srgb, var(--accent) 18%, transparent);
+    transform: translateY(-1px);
+  }
+  .zone.active h3 { color: var(--accent); }
+  .zone.reading { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, var(--surface-2)); }
+  .zone.reading h3 { color: var(--ok); }
+  .zone.drift { opacity: .5; }
+  .zone.centre { background: linear-gradient(180deg, var(--surface-2), color-mix(in srgb, var(--accent) 6%, var(--surface-2))); }
+
+  /* ---------- Side panel ---------- */
+  aside { display: flex; flex-direction: column; gap: 16px; }
+  .card { padding: 18px; }
+  .card h4 {
+    margin: 0 0 12px; font-size: 11px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+  }
+  .focus-value { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+  .focus-value strong { font-size: 26px; font-weight: 650; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .focus-value span { font-size: 12.5px; color: var(--muted); }
+  .meter { height: 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; }
+  .meter > div { height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--ok)); transition: width .2s linear; }
+  .current { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; font-size: 13.5px; }
+  .current .label { color: var(--muted); }
+  .current .value { font-weight: 600; }
+
+  .status-text { margin: 0; font-size: 13.5px; color: var(--ink-2); }
+  .status-text.error { color: var(--danger); }
+
+  .log { max-height: 320px; overflow: auto; margin: 0 -6px; padding: 0 6px; }
+  .log-item {
+    display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: baseline;
+    padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--ink-2);
+  }
+  .log-item:last-child { border-bottom: 0; }
+  .log-item time { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .log-empty { font-size: 13px; color: var(--muted); padding: 6px 0; }
+
+  .tips { margin: 0; padding-left: 18px; font-size: 13px; color: var(--ink-2); }
+  .tips li { margin: 4px 0; }
+
+  /* ---------- Overlays ---------- */
+  #cal {
+    position: fixed; inset: 0; z-index: 50; display: none;
+    background: rgba(5,7,12,.82); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  }
+  #cal .hint {
+    position: absolute; top: 24px; left: 50%; transform: translateX(-50%);
+    width: min(92vw, 520px); text-align: center; color: #fff; margin: 0;
+    font-size: 15px; font-weight: 550; padding: 12px 16px; border-radius: 12px; background: rgba(0,0,0,.45);
+  }
+  #cal .target {
+    position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%;
+    background: var(--warm); box-shadow: 0 0 0 8px rgba(255,179,107,.25); cursor: pointer;
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 14px rgba(255,179,107,.08); } }
+
+  #cursor {
+    position: fixed; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
+    background: var(--warm); box-shadow: 0 0 0 6px color-mix(in srgb, var(--warm) 22%, transparent);
+    pointer-events: none; z-index: 40; display: none; transition: left .08s linear, top .08s linear;
+  }
+  #preview {
+    position: fixed; right: 14px; bottom: 14px; width: 140px; border-radius: 12px; z-index: 45;
+    border: 1px solid var(--line); box-shadow: var(--shadow); display: none; transform: scaleX(-1);
+  }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    .grid { min-height: 0; grid-auto-rows: minmax(104px, auto); }
+  }
+  @media (max-width: 520px) {
+    .brand p { display: none; }
+    .actions button { padding: 8px 11px; font-size: 12.5px; }
+    .grid { gap: 8px; }
+    .zone { padding: 10px; }
+    .zone p { font-size: 12.5px; }
+    .zone h3 { font-size: 10px; }
+    .zone .meta { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="logo" aria-hidden="true"></div>
+    <div>
+      <h1>Gaze Responder</h1>
+      <p>Attention-aware workspace</p>
+    </div>
+  </div>
+  <div class="actions">
+    <button id="mode" type="button">Use webcam</button>
+    <button id="calBtn" type="button" disabled>Calibrate</button>
+    <button id="keep" type="button" aria-pressed="false">Keep awake</button>
+  </div>
+</header>
+
+<main class="layout">
+  <section class="panel stage" aria-label="Workspace">
+    <div class="stage-head">
+      <h2>Workspace</h2>
+      <span class="pill live" id="modePill"><span class="dot"></span><span id="modeText">Touch or mouse</span></span>
+    </div>
+
+    <div class="grid" id="grid">
+      <div class="zone" data-zone="0"><h3>Top left</h3><p>Notes, definitions and quick facts.</p><div class="meta">Dwell for hints</div><div class="bar"></div></div>
+      <div class="zone" data-zone="1"><h3>Top centre</h3><p>Headline or current task. Attention here keeps the timer running.</p><div class="meta">Focus zone</div><div class="bar"></div></div>
+      <div class="zone" data-zone="2"><h3>Top right</h3><p>The next step or a hint appears here.</p><div class="meta">Next step</div><div class="bar"></div></div>
+      <div class="zone" data-zone="3"><h3>Middle left</h3><p>Problem text. Holding attention here for 4 seconds reads it aloud.</p><div class="meta">Read aloud after 4s</div><div class="bar"></div></div>
+      <div class="zone centre" data-zone="4"><h3>Centre</h3><p>Your main workspace.</p><div class="meta">Workspace</div><div class="bar"></div></div>
+      <div class="zone" data-zone="5"><h3>Middle right</h3><p>Reference panel. Holding attention here for 3 seconds opens the formula sheet.</p><div class="meta">Formulas after 3s</div><div class="bar"></div></div>
+      <div class="zone" data-zone="6"><h3>Bottom left</h3><p>Scratch area.</p><div class="meta">Scratch</div><div class="bar"></div></div>
+      <div class="zone" data-zone="7"><h3>Bottom centre</h3><p>Looking away pauses the timer. Looking back resumes it.</p><div class="meta">Away = pause</div><div class="bar"></div></div>
+      <div class="zone" data-zone="8"><h3>Bottom right</h3><p>Save and export.</p><div class="meta">Export</div><div class="bar"></div></div>
+    </div>
+  </section>
+
+  <aside>
+    <section class="panel card" aria-label="Focus">
+      <h4>Focus</h4>
+      <div class="focus-value"><strong id="focusPct">0%</strong><span id="dwellText">No zone yet</span></div>
+      <div class="meter" aria-hidden="true"><div id="focusBar"></div></div>
+      <div class="current"><span class="label">Current zone</span><span class="value" id="current">None</span></div>
+    </section>
+
+    <section class="panel card" aria-label="Status">
+      <h4>Status</h4>
+      <p class="status-text" id="status">Tap or drag across the zones to try it. Use the webcam button for eye tracking.</p>
+    </section>
+
+    <section class="panel card" aria-label="Activity">
+      <h4>Activity</h4>
+      <div class="log" id="log" aria-live="polite"><div class="log-empty">Actions will appear here.</div></div>
+    </section>
+
+    <section class="panel card" aria-label="Tips">
+      <h4>Tips</h4>
+      <ul class="tips">
+        <li>Calibrate in good light with your face centred.</li>
+        <li>Keep your head still for the best accuracy.</li>
+        <li>Background tabs pause; keep this tab in front.</li>
+      </ul>
+    </section>
+  </aside>
+</main>
+
+<div id="cursor"></div>
+<div id="cal" role="dialog" aria-modal="true" aria-label="Calibration">
+  <p class="hint">Look at each dot and click it. This teaches the page where your eyes point.</p>
+</div>
+<video id="preview" autoplay muted playsinline></video>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const zones = [...document.querySelectorAll('.zone')];
+  const grid = $('grid');
+  const cursor = $('cursor');
+  const logEl = $('log');
+  const statusEl = $('status');
+  const currentEl = $('current');
+  const focusBar = $('focusBar');
+  const focusPct = $('focusPct');
+  const dwellText = $('dwellText');
+  const modeBtn = $('mode');
+  const modeText = $('modeText');
+  const modePill = $('modePill');
+  const calBtn = $('calBtn');
+  const keepBtn = $('keep');
+  const preview = $('preview');
+  const calEl = $('cal');
+
+  const ZONE_NAMES = ['Top left','Top centre','Top right','Middle left','Centre','Middle right','Bottom left','Bottom centre','Bottom right'];
+  const AWAY_MS = 5000;
+
+  let mode = 'touch';           // 'touch' (pointer/touch/mouse) or 'webcam'
+  let activeZone = -1;
+  let dwellStart = 0;
+  let lastGaze = 0;
+  let paused = false;
+  let wakeLock = null;
+  let webgazerReady = false;
+
+  // ---------- Helpers ----------
+  const esc = (s) => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  function log(msg) {
+    if (logEl.querySelector('.log-empty')) logEl.innerHTML = '';
+    const row = document.createElement('div');
+    row.className = 'log-item';
+    row.innerHTML = `<time>${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</time><span>${esc(msg)}</span>`;
+    logEl.prepend(row);
+    while (logEl.children.length > 80) logEl.lastChild.remove();
+  }
+  function setStatus(msg, isError = false) {
+    statusEl.textContent = msg;
+    statusEl.classList.toggle('error', isError);
+  }
+  function setPill(text, kind) {
+    modeText.textContent = text;
+    modePill.classList.toggle('live', kind === 'live');
+    modePill.classList.toggle('warn', kind === 'warn');
+  }
+  function zoneAt(x, y) {
+    for (let i = 0; i < zones.length; i++) {
+      const r = zones[i].getBoundingClientRect();
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return i;
+    }
+    return -1;
+  }
+  function speak(text) {
+    if ('speechSynthesis' in window) {
+      speechSynthesis.cancel();
+      speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+    }
+    log(text);
+  }
+
+  // ---------- Actions ----------
+  const onEnter = {
+    3: () => speak('Reading the problem aloud'),
+    7: () => { if (!paused) { paused = true; log('Looking away: timer paused'); } },
+  };
+  const onLeave = {
+    7: () => { if (paused) { paused = false; log('Back on screen: timer resumed'); } },
+  };
+  const onDwell = {
+    3: () => { zones[3].classList.add('reading'); },
+    5: () => {
+      zones[5].classList.add('reading');
+      zones[5].querySelector('p').textContent = 'Formulas: v = u + at  ·  s = ut + ½at²  ·  v² = u² + 2as';
+      log('Formula sheet opened');
+    },
+  };
+  const dwellLimit = { 3: 4000, 5: 3000 };
+
+  function setActive(i) {
+    if (i === activeZone) return;
+    if (activeZone >= 0) {
+      zones[activeZone].classList.remove('active');
+      if (onLeave[activeZone]) onLeave[activeZone]();
+    }
+    activeZone = i;
+    dwellStart = performance.now();
+    zones.forEach((z, k) => z.classList.toggle('drift', i >= 0 && k !== i));
+    if (i >= 0) {
+      zones[i].classList.add('active');
+      currentEl.textContent = ZONE_NAMES[i];
+      if (onEnter[i]) onEnter[i]();
+    } else {
+      currentEl.textContent = 'None';
+      dwellText.textContent = 'No zone yet';
+    }
+  }
+
+  // ---------- Attention loop ----------
+  setInterval(() => {
+    const now = performance.now();
+
+    // Webcam: no gaze for 5 s means the user looked away.
+    if (mode === 'webcam' && lastGaze && now - lastGaze > AWAY_MS && activeZone !== 7) {
+      setActive(7);
+    }
+
+    if (activeZone < 0) { focusBar.style.width = '0%'; focusPct.textContent = '0%'; return; }
+
+    const dwell = now - dwellStart;
+    const pct = Math.min(100, Math.round((dwell / 4000) * 100));
+    focusBar.style.width = pct + '%';
+    focusPct.textContent = pct + '%';
+    dwellText.textContent = `${(dwell / 1000).toFixed(1)} s on ${ZONE_NAMES[activeZone]}`;
+    zones[activeZone].querySelector('.bar').style.width = Math.min(100, (dwell / 4000) * 100) + '%';
+
+    const limit = dwellLimit[activeZone];
+    if (limit && dwell > limit && !zones[activeZone].classList.contains('reading')) {
+      onDwell[activeZone]();
+    }
+  }, 200);
+
+  // ---------- Touch and mouse (default) ----------
+  function handlePointer(e) {
+    if (mode !== 'touch') return;
+    cursor.style.display = 'block';
+    cursor.style.left = e.clientX + 'px';
+    cursor.style.top = e.clientY + 'px';
+    setActive(zoneAt(e.clientX, e.clientY));
+  }
+  grid.addEventListener('pointerdown', handlePointer);
+  grid.addEventListener('pointermove', handlePointer);
+  grid.addEventListener('pointerleave', () => { if (mode === 'touch') { cursor.style.display = 'none'; setActive(-1); } });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { setActive(-1); log('Tab hidden: tracking paused'); }
+    else log('Tab visible again');
+  });
+
+  // ---------- Webcam (WebGazer, loaded on demand) ----------
+  function loadWebgazer() {
+    return new Promise((resolve, reject) => {
+      if (window.webgazer) return resolve();
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/webgazer@3.0.1/dist/webgazer.min.js';
+      s.onload = () => (window.webgazer ? resolve() : reject(new Error('library did not initialise')));
+      s.onerror = () => reject(new Error('the gaze library could not be downloaded'));
+      document.head.appendChild(s);
+    });
+  }
+
+  async function startWebcam() {
+    setStatus('Loading the gaze library...');
+    try {
+      await loadWebgazer();
+      setStatus('Allow camera access when your browser asks.');
+      await webgazer.setRegression('ridge')
+        .setGazeListener((data) => {
+          if (!data || mode !== 'webcam') return;
+          lastGaze = performance.now();
+          cursor.style.display = 'block';
+          cursor.style.left = data.x + 'px';
+          cursor.style.top = data.y + 'px';
+          setActive(zoneAt(data.x, data.y));
+        })
+        .begin();
+      webgazer.showVideoPreview(false).showPredictionPoints(false);
+      const feed = document.querySelector('video:not(#preview)');
+      if (feed && feed.srcObject) preview.srcObject = feed.srcObject;
+      preview.style.display = 'block';
+      webgazerReady = true;
+      calBtn.disabled = false;
+      setPill('Webcam eye tracking', 'live');
+      setStatus('Webcam on. Calibrate for accuracy, then look around the grid.');
+      log('Webcam tracking started');
+    } catch (err) {
+      setStatus('Webcam tracking is unavailable: ' + err.message + '. Touch and mouse still work.', true);
+      setPill('Touch or mouse', 'live');
+      setMode('touch');
+      log('Could not start webcam: ' + err.message);
+    }
+  }
+
+  function setMode(next) {
+    mode = next;
+    modeBtn.textContent = next === 'webcam' ? 'Use touch' : 'Use webcam';
+    modeBtn.setAttribute('aria-pressed', next === 'webcam');
+    if (next === 'touch') {
+      lastGaze = 0;
+      preview.style.display = 'none';
+      calBtn.disabled = true;
+      if (webgazerReady) { try { webgazer.pause(); } catch {} }
+      setPill('Touch or mouse', 'live');
+      setStatus('Touch or drag across the zones. Pointer position stands in for gaze.');
+    }
+  }
+
+  modeBtn.addEventListener('click', () => {
+    if (mode === 'touch') { setMode('webcam'); startWebcam(); }
+    else setMode('touch');
+  });
+
+  // ---------- Calibration ----------
+  calBtn.addEventListener('click', () => {
+    calEl.querySelectorAll('.target').forEach(t => t.remove());
+    const pts = [[.1,.12],[.5,.12],[.9,.12],[.1,.5],[.5,.5],[.9,.5],[.1,.88],[.5,.88],[.9,.88]];
+    let done = 0;
+    pts.forEach(([fx, fy]) => {
+      const t = document.createElement('div');
+      t.className = 'target';
+      t.style.left = fx * 100 + '%';
+      t.style.top = fy * 100 + '%';
+      t.addEventListener('click', () => {
+        t.remove();
+        done++;
+        if (done === pts.length) {
+          calEl.style.display = 'none';
+          log('Calibration complete');
+          setStatus('Calibrated. Eye tracking is ready.');
+        }
+      });
+      calEl.appendChild(t);
+    });
+    calEl.style.display = 'block';
+    log('Calibration started');
+  });
+
+  // ---------- Keep awake ----------
+  keepBtn.addEventListener('click', async () => {
+    const on = keepBtn.getAttribute('aria-pressed') !== 'true';
+    if (on) {
+      try {
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => {
+          keepBtn.setAttribute('aria-pressed', 'false');
+          keepBtn.textContent = 'Keep awake';
+        });
+        keepBtn.setAttribute('aria-pressed', 'true');
+        keepBtn.textContent = 'Keeping awake';
+        log('Screen will stay on while this tab is open');
+      } catch {
+        log('Screen wake lock is not available on this browser');
+      }
+    } else {
+      if (wakeLock) await wakeLock.release();
+      wakeLock = null;
+      keepBtn.setAttribute('aria-pressed', 'false');
+      keepBtn.textContent = 'Keep awake';
+      log('Screen wake lock released');
+    }
+  });
+
+  // Re-acquire the wake lock when the tab returns to the front.
+  document.addEventListener('visibilitychange', async () => {
+    if (!document.hidden && keepBtn.getAttribute('aria-pressed') === 'true' && !wakeLock) {
+      try { wakeLock = await navigator.wakeLock.request('screen'); } catch {}
+    }
+  });
+
+  setStatus('Touch or drag across the zones. Use the webcam button for eye tracking.');
+})();
+</script>
+</body>
+</html>
