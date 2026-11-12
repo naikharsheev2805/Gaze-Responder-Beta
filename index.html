@@ -429,7 +429,7 @@
     return new Promise((resolve, reject) => {
       if (window.webgazer) return resolve();
       const s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/webgazer@3.0.1/dist/webgazer.min.js';
+      s.src = 'https://cdn.jsdelivr.net/npm/webgazer@3.5.3/dist/webgazer.min.js';
       s.onload = () => (window.webgazer ? resolve() : reject(new Error('library did not initialise')));
       s.onerror = () => reject(new Error('the gaze library could not be downloaded'));
       document.head.appendChild(s);
