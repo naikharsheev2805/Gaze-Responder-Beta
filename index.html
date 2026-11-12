@@ -441,17 +441,23 @@
     try {
       await loadWebgazer();
       setStatus('Allow camera access when your browser asks.');
-      await webgazer.setRegression('ridge')
-        .setGazeListener((data) => {
-          if (!data || mode !== 'webcam') return;
-          lastGaze = performance.now();
-          cursor.style.display = 'block';
-          cursor.style.left = data.x + 'px';
-          cursor.style.top = data.y + 'px';
-          setActive(zoneAt(data.x, data.y));
-        })
-        .begin();
-      webgazer.showVideoPreview(false).showPredictionPoints(false);
+      const wg = window.webgazer;
+      const step = (name, fn) => {
+        try { return fn(); }
+        catch (e) { throw new Error(name + ' failed (' + e.message + ')'); }
+      };
+      step('setGazeListener', () => wg.setGazeListener((data) => {
+        if (!data || mode !== 'webcam') return;
+        lastGaze = performance.now();
+        cursor.style.display = 'block';
+        cursor.style.left = data.x + 'px';
+        cursor.style.top = data.y + 'px';
+        setActive(zoneAt(data.x, data.y));
+      }));
+      if (typeof wg.setRegression === 'function') step('setRegression', () => wg.setRegression('ridge'));
+      await step('begin', () => wg.begin());
+      try { wg.showVideoPreview(false); } catch {}
+      try { wg.showPredictionPoints(false); } catch {}
       const feed = document.querySelector('video:not(#preview)');
       if (feed && feed.srcObject) preview.srcObject = feed.srcObject;
       preview.style.display = 'block';
